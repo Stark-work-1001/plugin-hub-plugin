@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "持久 Shell",
+    "description": "PowerShell / Bash，按 Agent 保留目录、变量和环境。"
+  }
+}

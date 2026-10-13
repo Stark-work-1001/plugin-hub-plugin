@@ -1,0 +1,5 @@
+{
+  "name": "plugin-hub-core",
+  "version": "0.1.2",
+  "description": "共享运行环境、插件检验与安全部署。"
+}

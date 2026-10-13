@@ -1,0 +1,16 @@
+{
+  "name": "plugin-hub-component-codex",
+  "version": "0.1.2",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "description": "独立 Codex 任务，使用本插件内的官方 CLI。",
+  "engines": {
+    "dsh": ">=0.2.0-0 <0.3 || >=0.2.1-0 <0.3"
+  }
+}

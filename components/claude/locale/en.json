@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Claude Code Subagent",
+    "description": "独立 Claude Code 任务；在线使用需要 CLI 登录。"
+  }
+}

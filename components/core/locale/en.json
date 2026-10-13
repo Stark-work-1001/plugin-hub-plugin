@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Hub Core and Inspection",
+    "description": "Plugin inspection, composition checks and safe deployment; feature components run independently."
+  }
+}
