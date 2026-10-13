@@ -1,0 +1,57 @@
+{
+  "futureDesktop": "not independently validated",
+  "nativeComponents": {
+    "active": 5,
+    "total": 5
+  },
+  "visual": "not automatically validated",
+  "version": "0.1.2",
+  "ci": "prepared; not run on GitHub",
+  "moduleImports": {
+    "passed": 12,
+    "failed": 0
+  },
+  "platform": "win32-x64",
+  "privacy": {
+    "excluded": [
+      "machine paths",
+      "sessions",
+      "credentials",
+      "profiles",
+      "logs",
+      "backups",
+      "build caches",
+      "source maps"
+    ],
+    "source": "passed",
+    "runtime": "passed"
+  },
+  "offlineFunctional": {
+    "passed": 5,
+    "failed": 0
+  },
+  "regression": {
+    "passed": 28,
+    "failed": 0
+  },
+  "github": "local materials only; no remote publication",
+  "claudeOnline": "not validated",
+  "date": "2026-10-13",
+  "installedCopy": "left unchanged",
+  "lifecycle": {
+    "passed": 5,
+    "failed": 0
+  },
+  "archive": {
+    "sha256": "bc9ba26cadc9a5fd39d8d270d1bf953e4867d272d0ee81caa6f50fc1215d502c",
+    "offlineLinksRestored": 385,
+    "filename": "plugin-hub-plugin-v0.1.2-windows-x64.zip",
+    "privacy": "passed",
+    "extractedImportsPassed": 12,
+    "entries": 5526,
+    "manifestVerifiedFiles": 5525,
+    "bytes": 253684513,
+    "nativeClis": "version launches passed"
+  },
+  "installedSourceFilesUnchanged": 173
+}

@@ -1,0 +1,12 @@
+# Paths are inferred from this package at runtime. No machine-specific defaults.
+- insert:
+    - id: plugin-hub
+      name: plugin-hub-plugin/core
+    - id: plugin-hub-shell
+      name: plugin-hub-component-shell
+    - id: plugin-hub-worktree
+      name: plugin-hub-component-worktree
+    - id: plugin-hub-codex
+      name: plugin-hub-component-codex
+    - id: plugin-hub-claude
+      name: plugin-hub-component-claude

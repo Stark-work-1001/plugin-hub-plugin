@@ -1,0 +1,97 @@
+{
+  "$schema": "./catalog.schema.json",
+  "hub": {
+    "name": "plugin-hub-plugin",
+    "displayName": "插件板",
+    "version": "0.1.2",
+    "enginesDsh": ">=0.2.0-0 <0.3 || >=0.2.1-0 <0.3"
+  },
+  "source": {
+    "project": "deepseek-ai/deepseek-harness",
+    "upstreamVersion": "0.2.1-alpha.2"
+  },
+  "install": {
+    "mode": "symbolic-link",
+    "mount": "single-bundle",
+    "reason": "One bundle declares four independent feature components plus core inspection; all implementation stays inside this package."
+  },
+  "adapterDependencies": [
+    "@deepseek-ai/dsh-tool-subagent"
+  ],
+  "plugins": [
+    {
+      "id": "pwsh-persistent",
+      "name": "@deepseek-ai/dsh-tool-pwsh-persistent",
+      "displayName": "持久 Shell（PowerShell）",
+      "role": "Model-facing owner-scoped persistent PowerShell tool backed by the Harness PTY service",
+      "upstreamPath": "packages/shell/tool-pwsh-persistent",
+      "unit": [
+        "@deepseek-ai/dsh-tool-pwsh-persistent"
+      ],
+      "origin": "0.2.1-alpha.2 tarball"
+    },
+    {
+      "id": "bash-persistent",
+      "name": "@deepseek-ai/dsh-tool-bash-persistent",
+      "displayName": "持久 Shell（Bash）",
+      "role": "Model-facing owner-scoped persistent Bash tool backed by the Harness PTY service",
+      "upstreamPath": "packages/shell/tool-bash-persistent",
+      "unit": [
+        "@deepseek-ai/dsh-tool-bash-persistent"
+      ],
+      "origin": "0.2.1-alpha.2 tarball"
+    },
+    {
+      "id": "git-branch",
+      "name": "@deepseek-ai/dsh-experimental-tool-worktree",
+      "displayName": "Git 分支（worktree）",
+      "role": "Model tool that creates and enters a new Git worktree",
+      "upstreamPath": "packages/experimental/tool-worktree",
+      "unit": [
+        "@deepseek-ai/dsh-experimental-tool-worktree",
+        "@deepseek-ai/dsh-experimental-worktree"
+      ],
+      "origin": "0.2.1-alpha.2 tarball"
+    },
+    {
+      "id": "subagent-codex",
+      "name": "@deepseek-ai/dsh-subagent-codex",
+      "displayName": "Codex 子智能体",
+      "role": "One-shot Codex subagent provider over the official app-server protocol",
+      "upstreamPath": "packages/subagent/subagent-codex",
+      "unit": [
+        "@deepseek-ai/dsh-subagent-codex"
+      ],
+      "origin": "0.2.1-alpha.2 tarball"
+    },
+    {
+      "id": "subagent-claude-code",
+      "name": "@deepseek-ai/dsh-subagent-claude-code",
+      "displayName": "Claude Code 子智能体",
+      "role": "One-shot Claude Code subagent provider over the official Agent SDK",
+      "upstreamPath": "packages/subagent/subagent-claude-code",
+      "unit": [
+        "@deepseek-ai/dsh-subagent-claude-code"
+      ],
+      "origin": "0.2.1-alpha.2 tarball"
+    }
+  ],
+  "components": [
+    {
+      "name": "plugin-hub-component-shell",
+      "path": "components/shell"
+    },
+    {
+      "name": "plugin-hub-component-worktree",
+      "path": "components/worktree"
+    },
+    {
+      "name": "plugin-hub-component-codex",
+      "path": "components/codex"
+    },
+    {
+      "name": "plugin-hub-component-claude",
+      "path": "components/claude"
+    }
+  ]
+}

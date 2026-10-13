@@ -1,0 +1,68 @@
+{
+  "name": "plugin-hub-plugin",
+  "version": "0.1.2",
+  "private": true,
+  "description": "插件板：持久 Shell、Git worktree、Codex 与 Claude Code 组件；双版本兼容检验与 symbolic-link 原位部署。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./compat": "./lib/compat.js",
+    "./inspect": "./lib/inspect.js",
+    "./deploy": "./lib/deploy.js",
+    "./catalog.json": "./catalog.json",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./core": "./lib/index.js",
+    "./core/package.json": "./components/core/package.json",
+    "./core/locale/*.json": "./components/core/locale/*.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.0-0 <0.3 || >=0.2.1-0 <0.3"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.263",
+    "@anthropic-ai/sdk": "0.93.0",
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "@openai/codex": "0.153.4",
+    "zod": "4.4.3",
+    "plugin-hub-component-shell": "link:./components/shell",
+    "plugin-hub-component-worktree": "link:./components/worktree",
+    "plugin-hub-component-codex": "link:./components/codex",
+    "plugin-hub-component-claude": "link:./components/claude"
+  },
+  "files": [
+    "lib",
+    "components",
+    "locale",
+    "adapters",
+    "plugins",
+    "vendor",
+    "scripts",
+    "docs",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "README.md",
+    "CHANGELOG.md",
+    "catalog.json",
+    "catalog.schema.json",
+    "cordis.patch.yml"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "bootstrap": "node scripts/restore-runtime.mjs",
+    "build": "node scripts/adapt-plugins.mjs && node scripts/load-test.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "inspect": "node scripts/inspect.mjs",
+    "deploy:plan": "node scripts/deploy.mjs",
+    "release:scan": "node scripts/privacy-scan.mjs"
+  }
+}
