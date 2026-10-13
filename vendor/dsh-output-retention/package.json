@@ -1,0 +1,17 @@
+{
+  "name": "@deepseek-ai/dsh-output-retention",
+  "version": "0.2.1-alpha.2",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "_vendoredFrom": "@deepseek-ai/dsh-output-retention@0.2.1-alpha.2",
+  "_vendoredBy": "plugin-hub-plugin"
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@deepseek-ai/dsh-subprocess",
+  "version": "0.2.1-alpha.2",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./control": {
+      "types": "./lib/types/control.d.ts",
+      "default": "./lib/control.js"
+    }
+  },
+  "license": "MIT",
+  "_vendoredFrom": "@deepseek-ai/dsh-subprocess@0.2.1-alpha.2",
+  "_vendoredBy": "plugin-hub-plugin"
+}
