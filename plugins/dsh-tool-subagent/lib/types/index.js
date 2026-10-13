@@ -1,0 +1,335 @@
+import z from '@deepseek-ai/schemastery';
+import { scopeChainOf, scopeOf } from '@deepseek-ai/dsh-scope';
+import { defineTool } from '@deepseek-ai/dsh-tools';
+import { SessionSeq } from '@deepseek-ai/dsh-session';
+import { assertSubagentMaxDepth, parentAgentOptionsForDelegation, } from '@deepseek-ai/dsh-subagent';
+import { assertAllowedModelSelection, hasConfiguredLlmSelection, hasDelegationModelRequest, preflightChildLlmRoute, requestedAgentOptions, } from "./model-selection.js";
+import { registerListSubagentModels } from "./list-models.js";
+import { recordSubagentModelSelection, subagentModelSelectionProjectionDefinition, subagentModelSelectionPolicy, } from "./model-selection-state.js";
+export const name = 'tool-subagent';
+export const inject = ['tools', 'subagents', 'systemPrompt', 'sessionProjections'];
+const delegationTools = new Set();
+export const Config = z.object({
+    provider: z.string().required(),
+    toolName: z.string().default('subagent'),
+    modelSelectionSettings: z.boolean().default(false),
+    agentOptions: z.object({
+        provider: z.string(),
+        model: z.string(),
+        reasoningEffort: z.string().min(1),
+        maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
+    }).default(undefined),
+    persona: z.string(),
+    toolFilter: z.object({
+        allow: z.array(z.string()).default(undefined),
+        deny: z.array(z.string()).default(undefined),
+    }).default(undefined),
+    maxDepth: z.union([z.natural().max(Number.MAX_SAFE_INTEGER), z.const('provider-managed')]),
+});
+function providerWording(inheritsConversation) {
+    if (inheritsConversation) {
+        return {
+            description: 'Delegate a task to a subagent that inherits this conversation: a child agent seeded with all '
+                + 'completed turns so far (it does not see the current in-flight turn). Use this when the subtask '
+                + 'builds on this conversation\'s context — a follow-up analysis, '
+                + 'a review, a continuation — without consuming this conversation\'s context for the work itself. '
+                + 'You receive its result, not its intermediate steps.',
+            promptDescription: 'The task for the subagent. It already sees this conversation\'s completed turns, so build on them '
+                + 'freely and state only what is new.',
+        };
+    }
+    return {
+        description: 'Delegate a self-contained task to a subagent (a separate agent that works in its own context) '
+            + 'to offload focused, independent work — research, a scoped '
+            + 'implementation, an analysis — so it does not consume this conversation\'s context. The subagent '
+            + 'returns its result, not its intermediate steps.',
+        promptDescription: 'The complete, self-contained task for the subagent. It does not share this '
+            + 'conversation\'s context, so include everything it needs.',
+    };
+}
+export function apply(ctx, config, session) {
+    if (config.maxDepth !== 'provider-managed')
+        assertSubagentMaxDepth(config.maxDepth);
+    if (config.toolFilter !== undefined && config.toolFilter.allow === undefined && config.toolFilter.deny === undefined) {
+        throw new Error('tool-subagent: `toolFilter` is configured but names neither `allow` nor `deny` — remove the key or fill the filter');
+    }
+    const toolName = config.toolName ?? 'subagent';
+    const modelSelectionCapable = config.modelSelectionSettings === true;
+    ctx.sessionProjections.register(subagentModelSelectionProjectionDefinition);
+    const assertSubagentProviderConfiguration = (subagentProvider) => {
+        if (ctx.subagents.resolveMaxDepth(config.maxDepth) !== undefined && !subagentProvider.capabilities.depthLimit) {
+            throw new Error(`tool-subagent: provider "${subagentProvider.name}" cannot enforce maxDepth (no depthLimit capability) — `
+                + 'set maxDepth: \'provider-managed\' to leave the recursion budget to the provider');
+        }
+        if (config.agentOptions !== undefined && !subagentProvider.capabilities.agentOptions) {
+            throw new Error(`tool-subagent: provider "${subagentProvider.name}" does not support child agentOptions`);
+        }
+        if (modelSelectionCapable && !subagentProvider.capabilities.agentOptions) {
+            throw new Error(`tool-subagent: provider "${subagentProvider.name}" does not support child model selection`);
+        }
+    };
+    ctx.on('subagent/provider-added', (subagentProvider) => {
+        if (subagentProvider.name === config.provider)
+            assertSubagentProviderConfiguration(subagentProvider);
+    });
+    const initialProvider = ctx.subagents.getProvider(config.provider);
+    if (initialProvider !== undefined)
+        assertSubagentProviderConfiguration(initialProvider);
+    const install = (runtimeCtx, modelSelectionPolicy) => {
+        const modelSelectionEnabled = modelSelectionPolicy !== undefined;
+        if (modelSelectionPolicy !== undefined)
+            registerListSubagentModels(runtimeCtx, modelSelectionPolicy);
+        let mounted;
+        const mount = (subagentProvider) => {
+            assertSubagentProviderConfiguration(subagentProvider);
+            const wording = providerWording(subagentProvider.inheritsParentContext);
+            const providerRouteDefaults = subagentProvider.agentRouteDefaults;
+            const selectionDescription = providerRouteDefaults !== undefined
+                ? ' Child LLM selection is optional. Omit `provider`, `model`, and `reasoning_effort` to use configured child defaults and this provider\'s route defaults. Supply `provider` and `model` together after using `list_subagent_models` to inspect advertised routes and efforts. Changing the effective route without naming an effort uses the selected model\'s default effort.'
+                : ' Child LLM selection is optional. Omit `provider`, `model`, and `reasoning_effort` to use configured child defaults and inherit compatible missing values from the parent Agent. Supply `provider` and `model` together after using `list_subagent_models` to inspect advertised routes and efforts. Changing the effective route without naming an effort uses the selected model\'s default effort.';
+            const choiceDescription = !modelSelectionEnabled
+                ? ''
+                : selectionDescription
+                    + (subagentProvider.inheritsParentContext
+                        ? ' Changing the route can prevent provider-side reuse of the inherited conversation prefix.'
+                        : '');
+            const definition = defineTool({
+                name: toolName,
+                description: wording.description
+                    + ' This tool starts an independently managed subagent and immediately returns its id. The runtime notifies you when it finishes.'
+                    + (subagentProvider.prepareContinuable !== undefined
+                        ? ' The child reports results with `send_message`; use `send_message` to steer it while running or continue its conversation after it finishes.'
+                        : ' The completion notice includes its final answer. This backend does not accept follow-up messages.')
+                    + choiceDescription,
+                parameters: {
+                    cwd: {
+                        type: 'string',
+                        description: 'Initial child working directory. Relative paths use your current directory; omitted inherits it. Later directory changes in either agent are independent.',
+                    },
+                    description: {
+                        type: 'string',
+                        required: true,
+                        description: 'A short (3-5 word) description of the delegated task, for display.',
+                    },
+                    prompt: {
+                        type: 'string',
+                        required: true,
+                        description: wording.promptDescription,
+                    },
+                    ...modelSelectionEnabled ? {
+                        provider: {
+                            type: 'string',
+                            description: providerRouteDefaults !== undefined
+                                ? 'LLM provider route for the child. Supply together with model; omit both to use configured child defaults or this provider\'s route defaults.'
+                                : 'LLM provider route for the child. Supply together with model; omit both to use configured child defaults or inherit the parent route.',
+                        },
+                        model: {
+                            type: 'string',
+                            description: providerRouteDefaults !== undefined
+                                ? 'Model id interpreted by provider. Supply together with provider; omit both to use configured child defaults or this provider\'s route defaults.'
+                                : 'Model id interpreted by provider. Supply together with provider; omit both to use configured child defaults or inherit the parent route.',
+                        },
+                        reasoning_effort: {
+                            type: 'string',
+                            description: providerRouteDefaults !== undefined
+                                ? 'Adapter-owned reasoning effort for the effective child route. Omit to use a compatible configured effort or the selected model\'s default.'
+                                : 'Adapter-owned reasoning effort for the effective child route. Omit to inherit a compatible configured/parent effort or use a newly selected model\'s default.',
+                        },
+                    } : {},
+                },
+                output: {
+                    schema: {
+                        type: 'object',
+                        additionalProperties: false,
+                        properties: {
+                            kind: { type: 'string', required: true, const: 'activation' },
+                            subagentId: { type: 'string', required: true },
+                        },
+                    },
+                    render: (_args, value) => [{ type: 'text', text: `started subagent ${value.subagentId}` }],
+                },
+                isConcurrencySafe: () => true,
+                async execute(args, exec) {
+                    const parent = exec.agent;
+                    if (!parent) {
+                        throw new Error('subagent tool requires a calling agent (exec.agent was undefined)');
+                    }
+                    const modelRequest = args;
+                    const parentOptions = parentAgentOptionsForDelegation(parent);
+                    const requiresRoutePreflight = hasDelegationModelRequest(modelRequest)
+                        || hasConfiguredLlmSelection(config.agentOptions);
+                    const configuredChildAgentOptions = requiresRoutePreflight && providerRouteDefaults !== undefined
+                        ? { ...providerRouteDefaults, ...config.agentOptions }
+                        : config.agentOptions;
+                    const requestedChildAgentOptions = requestedAgentOptions(parentOptions, configuredChildAgentOptions, modelRequest, modelSelectionEnabled);
+                    assertAllowedModelSelection(modelSelectionPolicy, parentOptions, requestedChildAgentOptions, modelRequest);
+                    if (requiresRoutePreflight) {
+                        const llm = runtimeCtx.get('llm');
+                        if (llm === undefined) {
+                            throw new Error('cannot resolve the selected child LLM route because the `llm` service is unavailable');
+                        }
+                        await preflightChildLlmRoute(llm, parentOptions, requestedChildAgentOptions, exec.signal, providerRouteDefaults === undefined);
+                        if (runtimeCtx.subagents.getProvider(config.provider) !== subagentProvider) {
+                            throw new Error(`subagent provider "${config.provider}" changed while resolving the child LLM route; retry the delegation`);
+                        }
+                    }
+                    exec.signal.throwIfAborted();
+                    const maxDepth = runtimeCtx.subagents.resolveMaxDepth(config.maxDepth);
+                    const request = {
+                        ...args.cwd === undefined ? {} : { cwd: args.cwd },
+                        prompt: [{ type: 'text', text: args.prompt }],
+                        parent,
+                        ...requestedChildAgentOptions !== undefined ? { agentOptions: requestedChildAgentOptions } : {},
+                        ...config.persona !== undefined ? { persona: config.persona } : {},
+                        ...config.toolFilter !== undefined ? { toolFilter: config.toolFilter } : {},
+                        ...maxDepth !== undefined ? { maxDepth } : {},
+                    };
+                    const started = await runtimeCtx.subagents.startActivation({
+                        provider: config.provider,
+                        label: args.description,
+                        request,
+                        signal: exec.signal,
+                        delivery: 'parent',
+                    });
+                    return { kind: 'activation', subagentId: started.childId };
+                },
+            });
+            const disposeTool = runtimeCtx.effect(() => {
+                const unregister = runtimeCtx.tools.register(definition);
+                delegationTools.add(definition);
+                return () => {
+                    delegationTools.delete(definition);
+                    unregister();
+                };
+            });
+            mounted = { subagentProvider, disposeTool };
+        };
+        runtimeCtx.on('subagent/provider-added', (subagentProvider) => {
+            if (subagentProvider.name === config.provider && mounted === undefined)
+                mount(subagentProvider);
+        });
+        runtimeCtx.on('subagent/provider-removed', (name) => {
+            if (name !== config.provider || mounted === undefined)
+                return;
+            mounted.disposeTool();
+            mounted = undefined;
+        });
+        const present = runtimeCtx.subagents.getProvider(config.provider);
+        if (present !== undefined) {
+            mount(present);
+        }
+        else {
+            runtimeCtx.logger.info(`subagent provider "${config.provider}" not registered yet; the "${config.toolName ?? 'subagent'}" tool will register when it appears`);
+        }
+        runtimeCtx.systemPrompt.section({
+            name: `tool:${toolName}`,
+            order: runtimeCtx.systemPrompt.getSectionOrder('TOOL_SUBAGENT'),
+            text: (context) => {
+                if (mounted === undefined)
+                    return '';
+                const visible = [...delegationTools]
+                    .filter(tool => runtimeCtx.tools.get(tool.name, context.scope) === tool)
+                    .map(tool => tool.name)
+                    .sort();
+                if (visible[0] !== toolName)
+                    return '';
+                const names = visible.map(name => `\`${name}\``).join(' or ');
+                return `Start independent delegations with ${names} together in one assistant message and continue useful work while they run.`;
+            },
+        });
+    };
+    if (config.modelSelectionSettings !== true) {
+        install(ctx, undefined);
+        return;
+    }
+    const settings = ctx.get('subagentModelSelection');
+    if (settings === undefined) {
+        throw new Error('tool-subagent: `modelSelectionSettings` requires '
+            + '@deepseek-ai/dsh-tool-subagent/model-selection-settings in the Host scope');
+    }
+    const selectForSession = (target) => {
+        const freshSession = target.firstLiveSeq === 0
+            && target.eventAt(SessionSeq(0))?.type !== 'session/end-seed';
+        let allowedModels = subagentModelSelectionPolicy(ctx.sessionProjections, target);
+        if (allowedModels === undefined) {
+            const parentId = target.header.origin === 'subagent'
+                ? target.header.parentSession
+                : undefined;
+            if (parentId !== undefined) {
+                const sessions = ctx.get('sessions');
+                if (sessions === undefined) {
+                    throw new Error('tool-subagent: child model-selection inheritance requires the Session registry');
+                }
+                const parent = sessions.get(parentId);
+                allowedModels = parent === undefined
+                    ? undefined
+                    : subagentModelSelectionPolicy(ctx.sessionProjections, parent);
+            }
+            else if (freshSession) {
+                const current = settings.current();
+                allowedModels = current.enabled ? current.allowedModels : undefined;
+            }
+        }
+        if (allowedModels !== undefined) {
+            recordSubagentModelSelection(ctx.sessionProjections, target, allowedModels);
+        }
+        return allowedModels === undefined ? undefined : { routes: allowedModels };
+    };
+    if (session !== undefined) {
+        install(ctx, selectForSession(session));
+        return;
+    }
+    const compositionScope = scopeOf(ctx);
+    if (compositionScope === undefined) {
+        throw new Error('tool-subagent: standing `modelSelectionSettings` requires a scoped preset Context');
+    }
+    const agents = ctx.get('agents');
+    if (agents === undefined)
+        throw new Error('tool-subagent: standing `modelSelectionSettings` requires the Agent registry');
+    const scopedInstalls = new WeakMap();
+    const installing = new WeakSet();
+    const belongsToComposition = (candidate) => scopeChainOf(scopeOf(candidate.ctx)).includes(compositionScope);
+    const installScoped = (candidate) => {
+        const existing = scopedInstalls.get(candidate);
+        if (existing !== undefined)
+            return existing;
+        if (installing.has(candidate))
+            return;
+        installing.add(candidate);
+        let fiber;
+        try {
+            const policy = selectForSession(candidate.session);
+            fiber = candidate.ctx.inject(['tools', 'subagents', 'systemPrompt'], (runtimeCtx) => {
+                install(runtimeCtx, policy);
+            });
+        }
+        finally {
+            installing.delete(candidate);
+        }
+        scopedInstalls.set(candidate, fiber);
+        return fiber;
+    };
+    const removeScoped = (candidate) => {
+        const fiber = scopedInstalls.get(candidate);
+        if (fiber === undefined)
+            return;
+        scopedInstalls.delete(candidate);
+        void fiber.dispose().catch((error) => {
+            ctx.logger.warn(`tool-subagent: failed to remove recomposed Agent "${candidate.id}" definitions: ${String(error)}`);
+        });
+    };
+    const reconcileComposedAgents = () => {
+        for (const candidate of agents.list()) {
+            if (belongsToComposition(candidate))
+                installScoped(candidate);
+            else
+                removeScoped(candidate);
+        }
+    };
+    ctx.on('agent/created', async ({ agent: created }) => {
+        await installScoped(created);
+    });
+    ctx.on('agent/disposed', ({ agent: disposed }) => { removeScoped(disposed); });
+    ctx.on('tools/change', reconcileComposedAgents);
+    reconcileComposedAgents();
+}

@@ -1,0 +1,42 @@
+{
+  "name": "@deepseek-ai/dsh-tool-subagent",
+  "description": "Model-facing subagent delegation tool over the ctx.subagents seam",
+  "version": "0.2.1-alpha.2",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/subagent/tool-subagent"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./model-selection-settings": {
+      "types": "./lib/types/model-selection-settings.d.ts",
+      "default": "./lib/model-selection-settings.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/model-selection-settings.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {},
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "engines": {
+    "dsh": ">=0.2.0-0 <0.3 || >=0.2.1-0 <0.3"
+  },
+  "dsh": {},
+  "pluginHub": {
+    "owner": "plugin-hub-plugin",
+    "mount": "internal"
+  }
+}

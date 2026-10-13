@@ -1,0 +1,39 @@
+{
+  "name": "@deepseek-ai/dsh-experimental-tool-worktree",
+  "description": "Model tool that creates and enters a new Git worktree",
+  "version": "0.2.1-alpha.2",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "icon.svg",
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/experimental/tool-worktree"
+  },
+  "peerDependencies": {},
+  "icon": "./icon.svg",
+  "dsh": {},
+  "dependencies": {},
+  "engines": {
+    "dsh": ">=0.2.0-0 <0.3 || >=0.2.1-0 <0.3"
+  },
+  "pluginHub": {
+    "owner": "plugin-hub-plugin",
+    "mount": "internal"
+  }
+}

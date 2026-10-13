@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Plugin Hub",
+    "description": "包含持久 Shell、Git worktree、Codex 与 Claude Code 四类组件的插件板。"
+  }
+}

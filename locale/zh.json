@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "插件板",
+    "description": "包含持久 Shell、Git worktree、Codex 与 Claude Code 四类组件的插件板。"
+  }
+}
